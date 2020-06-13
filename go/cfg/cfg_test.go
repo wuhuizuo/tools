@@ -10,6 +10,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
+	"strings"
 	"testing"
 )
 
@@ -128,6 +130,41 @@ func f12() {
 	dead()
 }
 
+func f13(a int) int {
+	if a == 3 {		
+	} else {
+		return 123
+		dead()
+	}
+	live()
+}
+
+func f14(a int) int {
+	if a == 3 {
+		return a * 5
+		dead()
+	} else {
+		return 123
+		dead()
+	}
+	dead()
+}
+
+func f15(a int) int {
+	if a == 1 {
+		return a * 1
+	} else if a == 2 {
+		return a * 2
+	} else if a == 3 {
+		return a * 3
+	} else if a == 3 {
+		return a * 4
+	} else {
+		return 0
+	}
+
+	dead()
+}
 `
 
 func TestDeadCode(t *testing.T) {
@@ -160,6 +197,9 @@ func TestDeadCode(t *testing.T) {
 					decl.Name.Name,
 					&buf)
 				t.Logf("control flow graph:\n%s", g.Format(fset))
+				buf := new(bytes.Buffer)
+				printCFG(buf, g)
+				t.Logf("dot graph:\n%s", buf.String())
 			}
 		}
 	}
@@ -174,4 +214,46 @@ func mayReturn(call *ast.CallExpr) bool {
 		return fun.Sel.Name != "Fatal"
 	}
 	return true
+}
+
+// PrintCFG print control flow graph.
+func printCFG(w io.Writer, graph *CFG) {
+	if graph == nil {
+		return
+	}
+
+	fset := token.NewFileSet()
+
+	fmt.Fprintln(w, "digraph structs {")
+	fmt.Fprintln(w, "\tnode [shape=Mrecord]")
+
+	// output nodes
+
+	for _, b := range graph.Blocks {
+		var labels []string
+		name := fmt.Sprintf("<name> %s", b.String())
+		if !b.Live {
+			name += "!Dead!"
+		}
+		labels = append(labels, name)
+
+		var codes []string
+
+		for _, n := range b.Nodes {
+			codes = append(codes, formatNode(fset, n))
+		}
+		fmt.Fprintf(w, "\t"+`%d [label=%q tooltip=%q]`+"\n",
+			b.Index,
+			strings.Join(labels, "|"),
+			strings.Join(codes, "\n"),
+		)
+	}
+	for _, b := range graph.Blocks {
+		for _, s := range b.Succs {
+			fmt.Fprintf(w, "\t"+`%d -> %d`+"\n", b.Index, s.Index)
+		}
+	}
+
+	// output edges
+	fmt.Fprintln(w, "}")
 }
