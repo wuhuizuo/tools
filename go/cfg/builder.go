@@ -20,7 +20,7 @@ type builder struct {
 	targets   *targets                // linked stack of branch targets
 }
 
-func (b *builder) stmt(_s ast.Stmt) {	
+func (b *builder) stmt(_s ast.Stmt) {
 	// The label of the current statement.  If non-nil, its _goto
 	// target is always set; its _break and _continue are set only
 	// within the body of switch/typeswitch/select/for/range.
@@ -41,7 +41,7 @@ start:
 	case *ast.ExprStmt:
 		b.add(s)
 		if call, ok := s.X.(*ast.CallExpr); ok && !b.mayReturn(call) {
-			// Calls to panic, os.Exit, etc, never return.			
+			// Calls to panic, os.Exit, etc, never return.
 			b.current.Exit = true
 		}
 
@@ -65,7 +65,7 @@ start:
 
 	case *ast.ReturnStmt:
 		b.add(s)
-		b.current.Exit = true		
+		b.current.Exit = true
 
 	case *ast.BranchStmt:
 		b.branchStmt(s)
@@ -128,7 +128,8 @@ func (b *builder) stmtBranch(block *Block, done *Block, s ast.Stmt) *Block {
 	if done == nil {
 		done = b.newBlock("if.done")
 	}
-	b.jump(done)	
+	b.current = block
+	b.jump(done)
 
 	return done
 }
@@ -178,7 +179,7 @@ func (b *builder) branchStmt(s *ast.BranchStmt) {
 		block = b.newBlock("undefined.branch")
 	}
 	b.jump(block)
-	b.current = b.newBlock("unreachable.branch")
+	b.current = block
 }
 
 func (b *builder) switchStmt(s *ast.SwitchStmt, label *lblock) {
@@ -510,7 +511,15 @@ func (b *builder) newBlock(comment string) *Block {
 func (b *builder) add(n ast.Node) {
 	if b.current == nil || b.current.Exit {
 		b.current = b.newBlock("unreachable.block")
-	}	
+	}
+
+	// dead code after continue
+	if b.targets != nil &&
+		b.targets._continue != nil &&
+		b.current == b.targets._continue {
+		b.current = b.newBlock("unreachable.block")
+	}
+
 	b.current.Nodes = append(b.current.Nodes, n)
 }
 
