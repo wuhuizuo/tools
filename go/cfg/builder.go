@@ -93,7 +93,7 @@ start:
 		}
 
 		if done == nil {
-			b.current.Exit = false
+			b.current.Exit = true
 		} else {
 			b.current = done
 		}

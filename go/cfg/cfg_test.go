@@ -142,10 +142,8 @@ func f13(a int) int {
 func f14(a int) int {
 	if a == 3 {
 		return a * 5
-		dead()
 	} else {
 		return 123
-		dead()
 	}
 	dead()
 }
@@ -175,9 +173,15 @@ func TestDeadCode(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	for _, decl := range f.Decls {
 		if decl, ok := decl.(*ast.FuncDecl); ok {
+			t.Logf("func name: %s", decl.Name)
 			g := New(decl.Body, mayReturn)
+
+			var dotGraph bytes.Buffer
+			printCFG(&dotGraph, g)
+			t.Logf("control flow graph dot format:\n%s", &dotGraph)
 
 			// Print statements in unreachable blocks
 			// (in order determined by builder).
@@ -189,6 +193,7 @@ func TestDeadCode(t *testing.T) {
 					}
 				}
 			}
+			t.Logf("control flow graph:\n%s", g.Format(fset))
 
 			// Check that the result contains "dead" at least once but not "live".
 			if !bytes.Contains(buf.Bytes(), []byte("dead")) ||
@@ -196,10 +201,6 @@ func TestDeadCode(t *testing.T) {
 				t.Errorf("unexpected dead statements in function %s:\n%s",
 					decl.Name.Name,
 					&buf)
-				t.Logf("control flow graph:\n%s", g.Format(fset))
-				buf := new(bytes.Buffer)
-				printCFG(buf, g)
-				t.Logf("dot graph:\n%s", buf.String())
 			}
 		}
 	}
@@ -231,14 +232,10 @@ func printCFG(w io.Writer, graph *CFG) {
 
 	for _, b := range graph.Blocks {
 		var labels []string
-		name := fmt.Sprintf("<name> %s", b.String())
-		if !b.Live {
-			name += "!Dead!"
-		}
-		labels = append(labels, name)
+
+		labels = append(labels, fmt.Sprintf("<name> %s", b.String()))
 
 		var codes []string
-
 		for _, n := range b.Nodes {
 			codes = append(codes, formatNode(fset, n))
 		}
