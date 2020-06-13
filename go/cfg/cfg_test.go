@@ -57,7 +57,7 @@ func f4(x int) {
 	dead()
 }
 
-func f4(ch chan int) {
+func f5(ch chan int) {
 	select {
 	case <-ch:
 		live()
@@ -69,7 +69,7 @@ func f4(ch chan int) {
 	dead()
 }
 
-func f5(unknown bool) {
+func f6(unknown bool) {
 	for {
 		if unknown {
 			break
@@ -80,7 +80,7 @@ func f5(unknown bool) {
 	live()
 }
 
-func f6(unknown bool) {
+func f7(unknown bool) {
 outer:
 	for {
 		for {
@@ -92,7 +92,7 @@ outer:
 	live()
 }
 
-func f7() {
+func f8() {
 	for {
 		break nosuchlabel
 		dead()
@@ -100,12 +100,12 @@ func f7() {
 	dead()
 }
 
-func f8() {
+func f9() {
 	select{}
 	dead()
 }
 
-func f9(ch chan int) {
+func f10(ch chan int) {
 	select {
 	case <-ch:
 		return
@@ -113,7 +113,7 @@ func f9(ch chan int) {
 	dead()
 }
 
-func f10(ch chan int) {
+func f11(ch chan int) {
 	select {
 	case <-ch:
 		return
@@ -123,7 +123,7 @@ func f10(ch chan int) {
 	live()
 }
 
-func f11() {
+func f12() {
 	goto; // mustn't crash
 	dead()
 }
