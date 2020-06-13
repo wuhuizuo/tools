@@ -20,7 +20,7 @@ type builder struct {
 	targets   *targets                // linked stack of branch targets
 }
 
-func (b *builder) stmt(_s ast.Stmt) {
+func (b *builder) stmt(_s ast.Stmt) {	
 	// The label of the current statement.  If non-nil, its _goto
 	// target is always set; its _break and _continue are set only
 	// within the body of switch/typeswitch/select/for/range.
@@ -41,8 +41,8 @@ start:
 	case *ast.ExprStmt:
 		b.add(s)
 		if call, ok := s.X.(*ast.CallExpr); ok && !b.mayReturn(call) {
-			// Calls to panic, os.Exit, etc, never return.
-			b.current = b.newBlock("unreachable.call")
+			// Calls to panic, os.Exit, etc, never return.			
+			b.current.Exit = true
 		}
 
 	case *ast.DeclStmt:
@@ -65,7 +65,7 @@ start:
 
 	case *ast.ReturnStmt:
 		b.add(s)
-		b.current = b.newBlock("unreachable.return")
+		b.current.Exit = true		
 
 	case *ast.BranchStmt:
 		b.branchStmt(s)
@@ -77,25 +77,26 @@ start:
 		if s.Init != nil {
 			b.stmt(s.Init)
 		}
-		then := b.newBlock("if.then")
-		done := b.newBlock("if.done")
-		_else := done
-		if s.Else != nil {
-			_else = b.newBlock("if.else")
-		}
 		b.add(s.Cond)
-		b.ifelse(then, _else)
-		b.current = then
-		b.stmt(s.Body)
-		b.jump(done)
 
+		var done *Block
+		then := b.newBlock("if.then")
 		if s.Else != nil {
-			b.current = _else
-			b.stmt(s.Else)
-			b.jump(done)
+			_else := b.newBlock("if.else")
+			b.ifelse(then, _else)
+			done = b.stmtBranch(then, done, s.Body)
+			done = b.stmtBranch(_else, done, s.Else)
+		} else {
+			done = b.newBlock("if.done")
+			b.ifelse(then, done)
+			done = b.stmtBranch(then, done, s.Body)
 		}
 
-		b.current = done
+		if done == nil {
+			b.current.Exit = false
+		} else {
+			b.current = done
+		}
 
 	case *ast.SwitchStmt:
 		b.switchStmt(s, label)
@@ -115,6 +116,21 @@ start:
 	default:
 		panic(fmt.Sprintf("unexpected statement kind: %T", s))
 	}
+}
+
+func (b *builder) stmtBranch(block *Block, done *Block, s ast.Stmt) *Block {
+	b.current = block
+	b.stmt(s)
+
+	if b.current.Exit {
+		return done
+	}
+	if done == nil {
+		done = b.newBlock("if.done")
+	}
+	b.jump(done)	
+
+	return done
 }
 
 func (b *builder) stmtList(list []ast.Stmt) {
@@ -492,13 +508,18 @@ func (b *builder) newBlock(comment string) *Block {
 }
 
 func (b *builder) add(n ast.Node) {
+	if b.current == nil || b.current.Exit {
+		b.current = b.newBlock("unreachable.block")
+	}	
 	b.current.Nodes = append(b.current.Nodes, n)
 }
 
 // jump adds an edge from the current block to the target block,
 // and sets b.current to nil.
 func (b *builder) jump(target *Block) {
-	b.current.Succs = append(b.current.Succs, target)
+	if !b.current.Exit {
+		b.current.Succs = append(b.current.Succs, target)
+	}
 	b.current = nil
 }
 

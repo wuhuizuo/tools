@@ -65,6 +65,7 @@ type Block struct {
 	Succs []*Block   // successor nodes in the graph
 	Index int32      // index within CFG.Blocks
 	Live  bool       // block is reachable from entry
+	Exit bool       // block is deliverable following logic
 
 	comment string    // for debugging
 	succs2  [2]*Block // underlying array for Succs
@@ -101,7 +102,7 @@ func New(body *ast.BlockStmt, mayReturn func(*ast.CallExpr) bool) *CFG {
 
 	// Does control fall off the end of the function's body?
 	// Make implicit return explicit.
-	if b.current != nil && b.current.Live {
+	if b.current != nil && b.current.Live && b.current.Return() == nil {
 		b.add(&ast.ReturnStmt{
 			Return: body.End() - 1,
 		})
