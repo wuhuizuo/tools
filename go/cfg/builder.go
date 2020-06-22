@@ -122,9 +122,11 @@ func (b *builder) stmtBranch(block *Block, done *Block, s ast.Stmt) *Block {
 	b.current = block
 	b.stmt(s)
 
-	if b.current.Exit {
+	// maybe gone out this scope.
+	if b.current == nil || b.current.Exit {
 		return done
 	}
+
 	if done == nil {
 		done = b.newBlock("if.done")
 	}
@@ -179,7 +181,6 @@ func (b *builder) branchStmt(s *ast.BranchStmt) {
 		block = b.newBlock("undefined.branch")
 	}
 	b.jump(block)
-	b.current = block
 }
 
 func (b *builder) switchStmt(s *ast.SwitchStmt, label *lblock) {
@@ -238,7 +239,9 @@ func (b *builder) switchStmt(s *ast.SwitchStmt, label *lblock) {
 		}
 		b.stmtList(cc.Body)
 		b.targets = b.targets.tail
-		b.jump(done)
+		if b.current != nil && !b.current.Exit {
+			b.jump(done)
+		}
 		b.current = nextCond
 	}
 	if defaultBlock != nil {
@@ -513,20 +516,13 @@ func (b *builder) add(n ast.Node) {
 		b.current = b.newBlock("unreachable.block")
 	}
 
-	// dead code after continue
-	if b.targets != nil &&
-		b.targets._continue != nil &&
-		b.current == b.targets._continue {
-		b.current = b.newBlock("unreachable.block")
-	}
-
 	b.current.Nodes = append(b.current.Nodes, n)
 }
 
 // jump adds an edge from the current block to the target block,
 // and sets b.current to nil.
 func (b *builder) jump(target *Block) {
-	if !b.current.Exit {
+	if b.current != nil && !b.current.Exit {
 		b.current.Succs = append(b.current.Succs, target)
 	}
 	b.current = nil

@@ -56,6 +56,7 @@ func f4(x int) {
 	default:
 		panic("oops")
 	}
+	dead()
 }
 
 func f5(ch chan int) {
@@ -161,12 +162,12 @@ func f15(a int) int {
 		if a % 2 == 0 {
 			return a / 2
 		}
-		dead1()
+		live()
 		return 0
 	}
 
+	dead()
 	return 100
-	dead2()
 }
 `
 
@@ -181,9 +182,6 @@ func TestDeadCode(t *testing.T) {
 
 	for _, decl := range f.Decls {
 		if decl, ok := decl.(*ast.FuncDecl); ok {
-			if decl.Name.Name != "f6" {
-				continue
-			}
 			g := New(decl.Body, mayReturn)
 
 			var dotGraph bytes.Buffer
@@ -191,36 +189,22 @@ func TestDeadCode(t *testing.T) {
 
 			// Print statements in unreachable blocks
 			// (in order determined by builder).
+			var buf bytes.Buffer
 			for _, b := range g.Blocks {
-				var buf bytes.Buffer
-				for _, n := range b.Nodes {
-					fmt.Fprintf(&buf, "\t%s\n", formatNode(fset, n))
-				}
-
-				if b.Live {
-					// Check that the result contains "dead" at least once but not "live".
-					if bytes.Contains(buf.Bytes(), []byte("dead")) {
-						t.Logf("func name: %s", decl.Name)
-						t.Errorf("unexpected dead statements in function %s:\n%s",
-							decl.Name.Name,
-							&buf)
-						t.Logf("control flow graph dot format:\n%s", &dotGraph)
-						t.Logf("control flow graph:\n%s", g.Format(fset))
-					}
-				} else {
-					// Check that the result contains "dead" at least once but not "live".
-					if !bytes.Contains(buf.Bytes(), []byte("dead")) ||
-						bytes.Contains(buf.Bytes(), []byte("live")) {
-						t.Logf("func name: %s", decl.Name)
-						t.Errorf("unexpected dead statements in function %s:\n%s",
-							decl.Name.Name,
-							&buf)
-
-						t.Logf("control flow graph dot format:\n%s", &dotGraph)
-
-						t.Logf("control flow graph:\n%s", g.Format(fset))
+				if !b.Live {
+					for _, n := range b.Nodes {
+						fmt.Fprintf(&buf, "\t%s\n", formatNode(fset, n))
 					}
 				}
+			}
+
+			// Check that the result contains "dead" at least once but not "live".
+			if !bytes.Contains(buf.Bytes(), []byte("dead")) ||
+				bytes.Contains(buf.Bytes(), []byte("live")) {
+				t.Logf("func name: %s", decl.Name)
+				t.Errorf("unexpected dead statements in function %s:\n%s", decl.Name.Name, &buf)
+				t.Logf("control flow graph dot format:\n%s", &dotGraph)
+				t.Logf("control flow graph:\n%s", g.Format(fset))
 			}
 		}
 	}
