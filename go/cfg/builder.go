@@ -91,11 +91,11 @@ start:
 			b.ifelse(then, done)
 			done = b.stmtBranch(then, done, s.Body)
 		}
-
-		if done == nil {
-			b.current.Exit = true
-		} else {
+		if done != nil {
 			b.current = done
+		}
+		if b.current != nil && done == nil {
+			b.current.Exit = true
 		}
 
 	case *ast.SwitchStmt:
